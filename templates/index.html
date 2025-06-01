@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Family Location Sharing</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Start Sharing Your Location</h1>
+    <input type="text" id="family" placeholder="Family Name" required>
+    <input type="text" id="name" placeholder="Your Name" required>
+    <button onclick="startSharing()">Start Sharing</button>
+    <p id="status"></p>
+    <a href="/map">View Family Map</a>
+
+    <script>
+        let watchId;
+        function startSharing() {
+            const family = document.getElementById('family').value.trim();
+            const name = document.getElementById('name').value.trim();
+            if (!family || !name) {
+                alert("Please enter both fields");
+                return;
+            }
+            document.getElementById('status').innerText = "Sharing...";
+            watchId = navigator.geolocation.watchPosition(pos => {
+                fetch('/update_location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        family, name,
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude
+                    })
+                });
+            }, () => {
+                document.getElementById('status').innerText = "Location failed.";
+            }, { enableHighAccuracy: true });
+        }
+    </script>
+</body>
+</html>

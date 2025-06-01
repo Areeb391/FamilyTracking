@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .email-cell {
+            min-width: 200px;
+        }
+        .actions-cell {
+            min-width: 100px;
+        }
+    </style>
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show mb-0">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <div class="container mt-4">
+        <h1>Admin Dashboard</h1>
+
+        <!-- Search Form -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <form action="{{ url_for('admin_search') }}" method="GET" id="searchForm">
+                    <div class="input-group">
+                        <input type="text" class="form-control" 
+                            name="q" 
+                            id="searchInput"
+                            placeholder="Search users by email or name..." 
+                            value="{{ search_query if search_query }}"
+                            required>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                        {% if search_query %}
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                            Clear Search
+                        </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Users</h5>
+                        <p class="card-text display-4">{{ user_count }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Active Users</h5>
+                        <p class="card-text display-4">{{ users|selectattr('is_active')|list|length }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Families</h5>
+                        <p class="card-text display-4">{{ family_count }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>
+            {% if search_query %}
+            Search Results for "{{ search_query }}" ({{ users|length }} found)
+            {% else %}
+            All Users
+            {% endif %}
+        </h2>
+        
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th class="email-cell">Email</th>
+                        <th>Name</th>
+                        <th>Family</th>
+                        <th>Status</th>
+                        <th>Last Active</th>
+                        <th>Last Location</th>
+                        <th class="actions-cell">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td class="email-cell">{{ user.email }}</td>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.family }}</td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.last_active and user.last_active != 'Never' %}
+                                {{ user.last_active }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.last_location != 'Unknown' %}
+                                <a href="https://maps.google.com/?q={{ user.last_location }}" target="_blank">
+                                    {{ user.last_location }} 
+                                    {% if user.location_time and user.location_time != 'Never' %}
+                                        ({{ user.location_time }})
+                                    {% endif %}
+                                </a>
+                            {% else %}
+                                Unknown
+                            {% endif %}
+                        </td>
+                        <<td>
+                            {% if user.email != ADMIN_EMAIL %}
+                            <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-danger btn-sm" 
+                                    onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <h2 class="mt-5">All Families</h2>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Join Code</th>
+                        <th>Members</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for family in families %}
+                    <tr>
+                        <td>{{ family.id }}</td>
+                        <td>{{ family.name }}</td>
+                        <td>{{ family.join_code }}</td>
+                        <td>{{ family.member_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('searchForm');
+            const input = document.getElementById('searchInput');
+            
+            form.addEventListener('submit', function(e) {
+                if (!input.value.trim()) {
+                    e.preventDefault();
+                    window.location.href = "{{ url_for('admin_dashboard') }}";
+                }
+            });
+            
+            // Auto-focus search input when page loads
+            if (input) {
+                input.focus();
+            }
+            
+            // Close alert messages after 5 seconds
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    alert.classList.remove('show');
+                    alert.classList.add('fade');
+                }, 5000);
+            });
+        });
+    </script>
+</body>
+</html>

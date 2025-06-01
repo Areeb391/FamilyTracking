@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Driver Panel</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map { height: 400px; }
+    body { font-family: Arial; padding: 20px; }
+    button { padding: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Driver Panel</h2>
+  <label>Select Train:</label>
+  <select id="trainSelect">
+    <option value="CSMT-Kalyan">CSMT - Kalyan</option>
+    <option value="Thane-Panvel">Thane - Panvel</option>
+  </select><br><br>
+
+  <button onclick="toggleSharing()">Start Sharing</button>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    let sharing = false;
+    let train = "";
+    let map = L.map('map').setView([19.0, 73.0], 10);
+    let marker = L.marker([19.0, 73.0]).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    function toggleSharing() {
+      sharing = !sharing;
+      document.querySelector('button').innerText = sharing ? "Stop Sharing" : "Start Sharing";
+      train = document.getElementById('trainSelect').value;
+      if (sharing) startGPS();
+    }
+
+    function startGPS() {
+      if (!navigator.geolocation) return;
+      setInterval(() => {
+        if (!sharing) return;
+        navigator.geolocation.getCurrentPosition(pos => {
+          let lat = pos.coords.latitude;
+          let lng = pos.coords.longitude;
+          map.setView([lat, lng], 15);
+          marker.setLatLng([lat, lng]);
+          fetch('/update_location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ train: train, lat: lat, lng: lng })
+          });
+        });
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Family Map</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+    <h1>Family Live Location</h1>
+    <input type="text" id="family" placeholder="Enter Family Name">
+    <button onclick="loadMap()">Load Map</button>
+    <div id="map" style="height: 500px;"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([20.5937, 78.9629], 5); // India
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        let markers = [];
+
+        function loadMap() {
+            const family = document.getElementById('family').value.trim();
+            if (!family) return alert('Enter family name');
+
+            fetch(`/get_locations?family=${family}`)
+                .then(res => res.json())
+                .then(data => {
+                    // Remove old markers
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+
+                    for (let name in data) {
+                        const { latitude, longitude } = data[name];
+                        const marker = L.marker([latitude, longitude])
+                            .addTo(map)
+                            .bindPopup(`<b>${name}</b><br>Lat: ${latitude}<br>Lon: ${longitude}`);
+                        markers.push(marker);
+                        map.setView([latitude, longitude], 16);
+                    }
+                });
+        }
+
+        setInterval(loadMap, 5000); // refresh every 5 sec
+    </script>
+</body>
+</html>

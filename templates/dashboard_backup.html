@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Family Dashboard</h2>
+    
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    Family Information
+                </div>
+                <div class="card-body">
+                    {% if not current_user.family %}
+                        <h5>You're not in a family group</h5>
+                        <form method="POST" action="{{ url_for('create_family') }}" class="mb-3">
+                            <div class="mb-3">
+                                <label for="family_name" class="form-label">Create New Family</label>
+                                <input type="text" class="form-control" id="family_name" name="family_name" placeholder="Family name" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Create Family</button>
+                        </form>
+                        <hr>
+                        <form method="POST" action="{{ url_for('join_family') }}">
+                            <div class="mb-3">
+                                <label for="join_code" class="form-label">Join Existing Family</label>
+                                <input type="text" class="form-control" id="join_code" name="join_code" placeholder="Join code" required>
+                            </div>
+                            <button type="submit" class="btn btn-success">Join Family</button>
+                        </form>
+                    {% else %}
+                        <h5>{{ current_user.family.name }}</h5>
+                        <p>Join code: <strong>{{ current_user.family.join_code }}</strong></p>
+                        <hr>
+                        <h6>Family Members</h6>
+                        <ul class="list-group">
+                            {% for member in family_members %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {{ member.name }}
+                                    {% if member.id == current_user.id %}
+                                        <span class="badge bg-primary rounded-pill">You</span>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    Your Location
+                </div>
+                <div class="card-body">
+                    <button id="updateLocationBtn" class="btn btn-primary mb-3">Share My Current Location</button>
+                    <div id="locationInfo">
+                        {% if family_locations %}
+                            {% for loc in family_locations %}
+                                {% if loc.username == current_user.username %}
+                                    <p><strong>Address:</strong> {{ loc.address }}</p>
+                                    <p><strong>Last updated:</strong> {{ loc.timestamp }}</p>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <p>No location shared yet</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    Family Map
+                </div>
+                <div class="card-body">
+                    {% if map_html %}
+                        <div id="map" style="height: 600px; width: 100%;">
+                            {{ map_html|safe }}
+                        </div>
+                    {% else %}
+                        <p>No family locations to display</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        document.getElementById('updateLocationBtn').addEventListener('click', function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        fetch('/update_location', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                latitude: lat,
+                                longitude: lng
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                // Update the location info display
+                                document.getElementById('locationInfo').innerHTML = `
+                                    <p><strong>Address:</strong> ${data.address}</p>
+                                    <p><strong>Last updated:</strong> ${data.timestamp}</p>
+                                `;
+                                
+                                // Refresh the family locations
+                                fetch('/get_locations')
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.status === 'success') {
+                                            // In a real app, you would update the map here
+                                            // For simplicity, we'll just reload the page
+                                            window.location.reload();
+                                        }
+                                    });
+                            }
+                        });
+                    },
+                    function(error) {
+                        alert('Error getting location: ' + error.message);
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser');
+            }
+        });
+        
+        // Auto-refresh locations every 30 seconds
+        setInterval(function() {
+            fetch('/get_locations')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.locations.length > 0) {
+                        // Check if locations have changed
+                        // In a real app, you would update the map here
+                        // For simplicity, we'll just reload the page if locations changed
+                        window.location.reload();
+                    }
+                });
+        }, 30000);
+    </script>
+{% endblock %}

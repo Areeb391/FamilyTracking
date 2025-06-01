@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Family Dashboard</h2>
+    
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    
+    <div class="row">
+        <div class="col-md-4">
+            <!-- Profile Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>My Profile</h4>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ current_user.name }}</p>
+                    <p><strong>Email:</strong> {{ current_user.email }}</p>
+                    <p><strong>Date of Birth:</strong> {{ current_user.dob.strftime('%B %d, %Y') }}</p>
+                    <p><strong>Family:</strong> {{ current_user.family.name if current_user.family else 'None' }}</p>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    Family Information
+                </div>
+                <div class="card-body">
+                    {% if not current_user.family %}
+                        <h5>You're not in a family group</h5>
+                        <form method="POST" action="{{ url_for('create_family') }}" class="mb-3">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="mb-3">
+                                <label for="family_name" class="form-label">Create New Family</label>
+                                <input type="text" class="form-control" id="family_name" name="family_name" placeholder="Family name" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Create Family</button>
+                        </form>
+                        <hr>
+                        <form method="POST" action="{{ url_for('join_family') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div class="mb-3">
+                                <label for="join_code" class="form-label">Join Existing Family</label>
+                                <input type="text" class="form-control" id="join_code" name="join_code" placeholder="Join code" required>
+                            </div>
+                            <button type="submit" class="btn btn-success">Join Family</button>
+                        </form>
+                    {% else %}
+                        <h5>{{ current_user.family.name }}</h5>
+                        <p>Join code: <strong>{{ current_user.family.join_code }}</strong></p>
+                        <hr>
+                        <h6>Family Members</h6>
+                        <ul class="list-group">
+                            {% for member in family_members %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {{ member.name }}
+                                    <span class="badge {% if member.is_active and ((current_time - member.last_active).total_seconds() < 600) %}bg-success{% else %}bg-secondary{% endif %} rounded-pill">
+                                        {% if member.id == current_user.id %}
+                                            You ({% if member.is_active %}Online{% else %}Offline{% endif %})
+                                        {% else %}
+                                            {% if member.is_active and ((current_time - member.last_active).total_seconds() < 600) %}Online{% else %}Offline{% endif %}
+                                        {% endif %}
+                                    </span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    Your Location Status
+                </div>
+                <div class="card-body">
+                    <div id="locationStatus">
+                        <p><strong>Status:</strong> <span id="statusText">Active</span></p>
+                        <p><strong>Last updated:</strong> <span id="lastUpdated">
+                            {% for loc in family_locations %}
+                                {% if loc.user_id == current_user.id %}
+                                    {{ loc.timestamp }}
+                                {% endif %}
+                            {% endfor %}
+                        </span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    Family Map
+                </div>
+                <div class="card-body">
+                    {% if map_html %}
+                        <div id="map" style="height: 600px; width: 100%;">
+                            {{ map_html|safe }}
+                        </div>
+                    {% else %}
+                        <p>No family locations to display</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Automatic location updates
+        function updateLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        fetch('/update_location', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                latitude: lat,
+                                longitude: lng,
+                                source: 'gps'
+                            })
+                        }).then(response => {
+                            if (response.ok) {
+                                document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+                            }
+                        });
+                    },
+                    function(error) {
+                        console.error('Error getting location:', error);
+                        document.getElementById('statusText').textContent = 'Error';
+                        document.getElementById('statusText').className = 'text-danger';
+                    },
+                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                );
+            } else {
+                document.getElementById('statusText').textContent = 'Unsupported';
+                document.getElementById('statusText').className = 'text-warning';
+            }
+        }
+        
+        // Initial location update
+        updateLocation();
+        
+        // Periodic updates every 2 minutes
+        const locationUpdateInterval = setInterval(updateLocation, 120000);
+        
+        // Background updates when tab is inactive (every 5 minutes)
+        let backgroundUpdateInterval;
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // Start background updates
+                backgroundUpdateInterval = setInterval(function() {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            fetch('/background_location', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token() }}'
+                                },
+                                body: JSON.stringify({
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude
+                                })
+                            });
+                        }
+                    );
+                }, 300000);
+            } else {
+                // Stop background updates when tab becomes active again
+                if (backgroundUpdateInterval) {
+                    clearInterval(backgroundUpdateInterval);
+                }
+            }
+        });
+        
+        // Update map every 30 seconds
+        const mapUpdateInterval = setInterval(function() {
+            fetch('/get_locations')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Only reload if locations have changed
+                        const currentLocations = JSON.stringify({{ family_locations|tojson|safe }});
+                        const newLocations = JSON.stringify(data.locations);
+                        if (currentLocations !== newLocations) {
+                            window.location.reload();
+                        }
+                    }
+                });
+        }, 30000);
+        
+        // Clean up intervals when leaving the page
+        window.addEventListener('beforeunload', function() {
+            clearInterval(locationUpdateInterval);
+            clearInterval(mapUpdateInterval);
+            if (backgroundUpdateInterval) {
+                clearInterval(backgroundUpdateInterval);
+            }
+        });
+    </script>
+{% endblock %}

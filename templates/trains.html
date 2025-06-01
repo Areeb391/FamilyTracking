@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Train</title>
+</head>
+<body>
+    <h2>Trains from {{ source }} to {{ destination }}</h2>
+    <ul>
+        {% for train in trains %}
+            <li>
+                {{ train.name }} 
+                <a href="/map/{{ train.id }}">View on Map</a>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

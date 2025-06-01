@@ -1,0 +1,19 @@
+{
+  "stations": ["CSMT", "Thane", "Kalyan"],
+  "routes": {
+    "CSMT": ["Thane", "Kalyan"],
+    "Thane": ["CSMT", "Kalyan"]
+  },
+  "trains": [
+    {
+      "id": "train_1",
+      "name": "CSMT Express",
+      "route": ["CSMT", "Thane", "Kalyan"]
+    },
+    {
+      "id": "train_2",
+      "name": "Kalyan Fast",
+      "route": ["Thane", "Kalyan"]
+    }
+  ]
+}
